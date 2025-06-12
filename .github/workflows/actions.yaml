@@ -1,0 +1,48 @@
+on:
+  push:
+    branches:
+      - main
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+jobs:
+ deploy-fastapi:
+   runs-on: ubuntu-latest
+   steps:
+     - name: Check out the repository
+       uses: actions/checkout@v4
+
+     - name: Setup Python
+       uses: actions/setup-python@v2
+     - name: Restore Virtualenv
+       uses: syphar/restore-virtualenv@v1
+       id: cache-virtualenv
+       with:
+         requirement_files: requirements.txt  # this is optional
+     - uses: syphar/restore-pip-download-cache@v1
+       if: steps.cache-virtualenv.outputs.cache-hit != 'true'
+
+     - name: Make the script executable
+       run: chmod +x package.sh
+
+     - name: Create the lambda package
+       id: 'create_package'
+       run: ./package.sh
+     - name: Configure AWS credentials
+       uses: aws-actions/configure-aws-credentials@v2
+       with:
+         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+         aws-region: eu-central-1
+     - name: Upload the package to S3
+       run: aws s3 cp fast-api-lambda.zip s3://${{ secrets.AWS_S3_BUCKET_NAME }}
+     - name: Update Lambda
+       run: |
+         aws lambda update-function-code \
+            --function-name=${{ secrets.AWS_LAMBDA_FUNCTION_NAME }} \
+            --s3-bucket=${{ secrets.AWS_S3_BUCKET_NAME }} \
+            --s3-key=fast-api-lambda.zip \
+            --cli-read-timeout 60 \
+            --cli-connect-timeout 60 
+

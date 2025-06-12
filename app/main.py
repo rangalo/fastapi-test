@@ -11,5 +11,6 @@ async def read_root():
 
 app.include_router(api_router, prefix="/api/v1")
 
+# Mangum creates the handler function for AWS Lambda
 handler = Mangum(app)
 
